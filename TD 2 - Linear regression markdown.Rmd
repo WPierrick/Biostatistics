@@ -1,0 +1,351 @@
+---
+title: "Rapport TD1"
+output: html_document
+---
+
+####Régression linéaire simple: Brochet et DDT
+
+Le DDT (dichlorodiphényltrichloroéthane) est un insecticides relativement puissant. Il est toxique et n'€™est pas dégrader de manière naturel. Il s'€™accumule dans certains tisus tels que le foie et les tissus adipeux. accumulation du DDT chez les brochets lecture du fichier de données.
+
+###1. Préliminaires
+
+**Importer les données '€˜Brochet.txt'€™.**
+   
+  
+```{r, echo=FALSE}
+getwd()
+setwd("C:/Users/Aurélien/Desktop")
+brochet<-read.table("Brochet.txt",header = TRUE)
+brochet
+
+``` 
+**Calculer la moyenne, la médiane, la variance de l'€™age des brochets et du taux de DDT.**
+```{r, echo=FALSE}
+
+ma<-mean(brochet$Age)
+cat("Moyenne d'age :",ma,".")
+mt<-mean(brochet$TxDDT)
+cat("Moyenne du taux de DDT :",mt,".")
+mea<-median(brochet$Age)
+cat("Mediane de l'age :",mea,".")
+met<-median(brochet$TxDDT)
+cat("Mediane du taux de DDT :",met,".")
+va<-var(brochet$Age)
+cat("Variance de l'age :",va,".")
+vt<-var(brochet$TxDDT)
+cat("Variance du taux de DDT :",vt,".")
+
+```
+
+
+**Tracer l'€™histogramme de l'€™é¢ge et du taux de DDT.**
+```{r, echo=FALSE}
+hist(brochet$Age)
+hist(brochet$TxDDT)
+```
+
+**Augmenter le nombre de barres. Que constate-t-on ?**
+
+```{r}
+ hist(brochet$Age,breaks = 20)
+ hist(brochet$TxDDT,breaks = 20)
+```
+
+On constate que la répartition des variables est également distribué pour les ages car il y a autant d'observation par classe d'age et pour le taux de DDT cela suit les cellules d'intervalles crées.
+
+
+
+**Tracer, sous la forme d'€™un nuage de point, le graphe du taux de DTT en fonction de l'age des brochets.**
+```{r, echo=FALSE}
+plot(brochet$TxDDT,brochet$Age)
+```
+
+**Tracer, sous la forme de box-plot, le graphe du taux de DTT en fonction de l'age des brochets. Que constate-t-on ?**
+```{r, echo=FALSE}
+boxplot(brochet$TxDDT~brochet$Age)
+```
+
+**Calculer la variance du Taux de DDT par classe d'age.**
+```{r, echo=FALSE}
+tapply(brochet$TxDDT,brochet$Age,"var")
+```
+
+
+
+###2. Un premier modèle
+
+**é‰crire un modèle de regression linéaire permettant d'€™expliquer le taux de DDT en fonction de l'age.**
+
+Soit Y, le taux de DDT dans du brochet et X , une variable aleatoire représentant l'age du Brochet.
+
+$$ Y = \beta_0 + \beta_1*X + \epsilon$$
+
+**Utiliser R pour estimer les paramètres de ce modèle. Vous appliquerez tout d'€™abord les formules du cours, puis vous utiliserez la fonction lm. Donner l'€™ordonnée é  l'€™origine, la pente et la variance résiduelle.**
+
+
+```{r, echo=FALSE}
+beta1.ols<- cov(brochet$Age,brochet$TxDDT)/var(brochet$Age)
+beta0.ols <- mean(brochet$TxDDT) - beta1.ols * mean(brochet$Age)
+
+cat("Beta 0 : ",beta0.ols,".")
+cat("Beta 1 : ",beta1.ols,".")
+```
+
+
+Approche avec la fonction lm
+
+```{r, echo=FALSE}
+ 
+resultat<-lm(brochet$TxDDT ~ brochet$Age)
+resu<-coefficients(resultat)
+res1<-resu[1]
+res2<-resu[2]
+
+cat("Beta 0 : ",res1,".")
+cat("Beta 1 : ",res2,".")
+epsi<-sum(residuals(resultat)^2)
+cat("epsilon : ",epsi,".")
+
+ 
+```
+
+
+**Tester les paramètres du modèles. Faites une analyse de la variance. Calculer é  la main la valeur de la statistique de Fisher ainsi que la valeur du coefficient d'€™ajustement.**
+
+```{r, echo =FALSE}
+
+sum1<-summary(resultat)
+sum10<-sum1[10]
+sum9<-sum1[9]
+cat("statistique de Fisher : ")
+sum10
+cat("coefficient d'€™ajustement : ")
+sum9
+anoresu<-anova(resultat)
+anoresu
+
+```
+
+
+**Tracer la droite de regression. Ajouter les intervalles de confiance de prédictions. Vous les calculerez d'€™abord é  l'€™aide des formules du cours puis en vous aidant de la commande predict.**
+
+```{r, echo =FALSE}
+plot(brochet$Age, brochet$TxDDT)
+abline(a=coefficients(resultat)[1],b=coefficients(resultat)[2])
+lines(brochet$Age, predict(resultat, interval = "conf")[,3])
+lines(brochet$Age, predict(resultat, interval = "conf")[,2])
+#ou
+#ggplot(brochet, aes(x=Age,y=TxDDT)) + stat_smooth(method="lm",formula=y-x) + geom_point()
+
+```
+
+
+
+**Faites un graphes des résidus pour évaluer la pertinence de votre modèle et effectuer les diagnostics d'€™usage. Vous pourrez également utiliser la commande plot de R appliqué é  l'€™objet issu de la fonction lm.**
+
+```{r, echo =FALSE}
+
+plot(resultat,which=1)
+shapiro.test(residuals(resultat))
+
+```
+Le modèle n'est pas pertinent car les résidus varie entre 0.1 et -0.1.
+
+###3. Modèle quadratique
+
+**E‰crire un nouveau modèle de regression linéaire permettant d'€™expliquer le taux de DDT en fonction de l'age au carré.**
+
+Soit Y, le taux de DDT dans du brochet et X , une variable aleatoire représentant l'age du Brochet. Avec $$\beta_0 = 0.$$
+
+$$ Y = \beta_0 + \beta_1*X^2  \epsilon$$
+
+
+```{r,  echo =FALSE}
+resultat2 <- lm(brochet$TxDDT ~ I(brochet$Age^2))
+```
+
+
+**Utiliser R pour estimer les paramètres de ce modèle.**
+
+```{r, echo=FALSE}
+sum1<-summary(resultat2)
+sum10<-sum1[10]
+sum9<-sum1[9]
+cat("statistique de Fisher : ")
+sum10
+cat("coefficient d'€™ajustement : ")
+sum9
+
+```
+
+
+**Tester les paramètres du modèles. Faites une analyse de la variance.**
+
+```{r, echo =FALSE}
+anoresu2<-anova(resultat2)
+anoresu2
+```
+
+
+**Tracer la droite de regression. On pourra utiliser la fonction geom_smooth de ggplot**
+
+```{r, echo =FALSE}
+plot(brochet$Age, brochet$TxDDT)
+curve(coefficients(resultat2)[1] +coefficients(resultat2)[2]*x^2, add=TRUE)
+lines(brochet$Age, predict(resultat2, interval = "conf")[,3])
+lines(brochet$Age, predict(resultat2, interval = "conf")[,2])
+#ou
+#ggplot(brochet, aes(x=Age,y=TxDDT)) + stat_smooth(method="lm",formula=y-x) + geom_point()
+```
+
+
+**Effectuer le diagnostic du modèle**
+
+```{r, echo =FALSE}
+plot(resultat2, which=1)
+shapiro.test(residuals(resultat2))
+```
+
+
+###4. Modèle transformation logarithmique
+
+**é‰crire un nouveau modèle de regression linéaire permettant d'€™expliquer le log du taux de DDT en fonction de l'age. **
+
+Soit Y, le taux de DDT dans du brochet et X , une variable aleatoire représentant l'age du Brochet. Avec $$\beta_0 = 0.$$
+
+$$ log(Y) = \beta_0 + \beta_1*X + \epsilon$$
+
+```{r, echo =FALSE}
+resultat3 <- lm(log(brochet$TxDDT) ~ brochet$Age)
+
+```
+
+
+**Tracer, sous la forme de box-plot, le graphe du log du taux de DTT en fonction de l'age des brochet. Que constate-t-on? **
+
+```{r, echo =FALSE}
+boxplot(log(brochet$TxDDT) ~ brochet$Age)
+```
+
+
+**Calculer la variance du Taux de DDT par classe d'age.**
+
+```{r, echo =FALSE}
+tapply(log(brochet$TxDDT),brochet$Age,"var")
+```
+
+
+**Utiliser R pour estimer les paramètres de ce modèle.**
+
+```{r, echo =FALSE}
+sum1<-summary(resultat3)
+sum10<-sum1[10]
+sum9<-sum1[9]
+cat("statistique de Fisher : ")
+sum10
+cat("coefficient d'€™ajustement : ")
+sum9
+```
+
+
+**Tester les paramètres du modèles. Faites une analyse de la variance.**
+
+```{r, echo =FALSE}
+anoresu3<-anova(resultat3)
+anoresu3
+```
+
+
+**Tracer la droite de regression. On pourra utiliser la fonction geom_smooth de ggplot.**
+
+```{r, echo =FALSE}
+plot(brochet$Age, log(brochet$TxDD))
+abline(a=coefficients(resultat3)[1],b=coefficients(resultat3)[2])
+lines(brochet$Age, predict(resultat3, interval = "conf")[,3])
+lines(brochet$Age, predict(resultat3, interval = "conf")[,2])
+#ou
+#ggplot(brochet, aes(x=Age,y=TxDDT)) + stat_smooth(method="lm",formula=y-x) + geom_point()
+```
+
+
+**Effectuer le diagnostic du modèle**
+
+```{r, echo =FALSE}
+plot(resultat3, which=1)
+shapiro.test(residuals(resultat3))
+```
+
+
+
+###5. Vers la régression multiple
+
+**E‰crire un modèle de regression linéaire permettant d'€™expliquer le log du taux de DDT en fonction de l'age et de l'age au carré.**
+
+Soit Y, le taux de DDT dans du brochet et X , une variable aleatoire représentant l'age du Brochet. Avec $$\beta_0 = 0.$$
+
+$$ log(Y) = \beta_0 + \beta_1*X^2 + + \beta_2*X\epsilon$$
+
+
+```{r, echo =FALSE}
+resultat4 <- lm(log(brochet$TxDDT) ~ I(brochet$Age^2)+brochet$Age)
+```
+
+
+**Utiliser R pour estimer les paramètres de ce modèle.**
+
+```{r, echo =FALSE}
+sum1<-summary(resultat4)
+sum10<-sum1[10]
+sum9<-sum1[9]
+cat("statistique de Fisher : ")
+sum10
+cat("coefficient d'€™ajustement : ")
+sum9
+```
+
+
+**Tester les paramètres du modèles. Faites une analyse de la variance pour comparer les 3 modèles M0, M1, M2 (intercept, + age, + le carré de l'age).**
+
+```{r, echo =FALSE}
+anoresu4<-anova(resultat4)
+anoresu4
+```
+
+
+
+**Tracer la courbe de regression.**
+
+```{r, echo =FALSE}
+plot(brochet$Age, log(brochet$TxDD))
+curve(coefficients(resultat4)[1]+coefficients(resultat4)[2]*x^2, add=TRUE)
+lines(brochet$Age, predict(resultat4, interval = "conf")[,3])
+lines(brochet$Age, predict(resultat4, interval = "conf")[,2])
+#ou
+#ggplot(brochet, aes(x=Age,y=TxDDT)) + stat_smooth(method="lm",formula=y-x) + geom_point()
+```
+
+
+**Validation des hypothèses. Utiliser R pour évaluer la pertinence du modèle. Qu'en pensez vous ? **
+
+```{r, echo =FALSE}
+plot(resultat4,which=1)
+shapiro.test(residuals(resultat4))
+```
+
+
+
+Pour ceux qui ont été vite: maximisation numérique de la vraisemblance
+
+Considérons un phénomène modélisé par une loi normale N(Î¼,Ïƒ2).
+
+    Calculer analytiquement logL(x1,'€¦,xn;Î¼,Ïƒ2).
+    Déterminer les estimateurs du maximum de vraisemblance en dérivant successivement logL par rapport é  Î¼ et Ïƒ2.
+    Générer un jeu de données gaussien de taille n=100, de moyenne Î¼=Ï€/2 et d'€™écart type Ïƒ=2'ˆš. Calculer les valeurs prises par les estimateurs du maximum de vraisemblance de Î¼ et Ïƒ2 obtenus dans les questions précédentes.
+    é‰crire une fonction loglikelihood qui prend en argument x,mu,sigma et renvoie la valeur de la fonction de log-vraisemblance pour (x1,'€¦,xn),Î¼ et Ïƒ donnés.
+    é€ l'€™aide de la fonction optimize, déterminer numériquement les valeurs de Î¼ et Ïƒ maximisant la fonction loglikelihood.
+    Dans une méªme fenéªtre graphique, représenter
+        l'€™histogramme des données,
+        la fonction logL pour Ïƒ fixée é  sa vraie valeur, en faisant varier Î¼ sur [Ï€/2'ˆ’Îµ,Ï€/2+Îµ]; situer également les valeurs estimées analytiquement et par optimize é  l'€™aide de abline.
+        la fonction logL pour Î¼ fixée, en faisant varier Ïƒ sur [2'ˆš'ˆ’Îµ,2'ˆš+Îµ]; de méªme, situer les valeur estimées analytiquement et par optimize. Représenter également la variance empirique corrigée.
+    Créer une matrice logL contenant les valeurs de la log-vraisemblance en faisant varier é  la fois Î¼ et Ïƒ. Créer une liste data=list(x,y,z) et utiliser les fonction persp, contour, image pour représenter la vraisemblance en 3D et 2D.
+
