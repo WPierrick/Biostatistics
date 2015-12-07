@@ -1,0 +1,302 @@
+---
+title: "Genomics data"
+author: "WAINSCHTEIN Pierrick"
+date: "16 novembre 2015"
+output: pdf_document
+---
+
+
+
+
+
+##Chargement des données
+
+Nous nous intéressons tout d'abord à la structure de nos données.
+Nous pouvons voir que le fichier liver.rda contient un objet qui contient une liste de 4 éléments :
+- Gènes (contient les niveaux d'expression de 3116 gènes)
+- Clinic (contient les données sur les sujets de test ainsi que Cholesterol.mg.dL en dernière colonne)
+- Treatment (des informations sur les traitements utilisés)
+- Gene.ID (des informations pour retrouver les différents gènes dans la base de donnée NCBI)
+
+```{r}
+
+load("liver.rda")
+
+library(GGally)
+library(ggplot2)
+ 
+
+# head(liver.toxicity)
+str(liver.toxicity)
+
+cholesterol <- liver.toxicity$clinic[,"Cholesterol.mg.dL."]
+
+str(liver.toxicity$treatment)
+
+gene <- liver.toxicity$gene
+
+
+```
+
+\newpage
+
+##Analyse descriptive des données
+
+On observe que les données de cholestérol semblent centrées autour de la valeur 80.
+
+```{r, echo=FALSE}
+par(mfrow=c(1,2))
+hist(cholesterol,col="cyan", breaks = 10, main="histogramme",xlab="")
+
+```
+
+#Sélection des données
+
+Nous sommes iniialement partis du principe que nous avions besoin de sélectioner des gènes parmi nos 3117 gènes initiaux.
+
+On regarde tout d'abord la corrélation entre les gènes. On plot le nombre de gènes selon le coefficient de corrélation.
+
+```{r}
+
+geneint<- function(seuil){gene[,abs(cor(gene[,1:ncol(gene)], cholesterol))>seuil]}
+
+visual = c()
+for ( i in seq(0, 1 , 0.1))
+  {
+    visual = c(visual, ncol(geneint(i)))
+}
+plot(seq(0, 1 , 0.1), visual)
+
+workgene <- geneint(0.4)
+
+image(abs(cor(workgene))) 
+
+```
+
+En faisant la heatmap des gènes présentant une forte corrélation avec le cholestérol (>0.4) (environ 500 gènes d'intérêt), nous pouvons constater que nous avons un grand nombre de gènes corrélés entre eux. Ce n'est pas un bon descripteur pour nos données.
+
+Nous tentons ensuite une sélection sur la variance.
+
+```{r}
+library(leaps)
+
+var.gene<-apply(gene, 2, var)
+
+plot(var.gene)
+hist(var.gene, breaks=100)
+
+plot.gene.var<-function(min)
+{
+  step<-seq(min, 0.5, 0.01)
+  n.genes<-c()
+  for(i in step)
+  {
+    n.genes<-c(n.genes, sum(var.gene>i))
+  }
+  plot(step, n.genes)
+}
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot.gene.var(0)
+plot.gene.var(0.04)
+plot.gene.var(0.08)
+plot.gene.var(0.2)
+
+work.gene <- gene[,var.gene>0.1]
+ncol(work.gene)
+
+```
+
+En regardant la distribution de la variance des 3117 gènes, la majorité est proche de 0 avec seulement 49 présentant une variance supérieure à 0.1.
+
+
+
+\newpage
+
+##Régression Stepwise
+
+Nous avons fait une régression stepwise sur les gènes sélectionnés sur la variance.
+
+```{r, echo=FALSE}
+scope <- list(lower = terms(cholesterol ~ 1, data=work.gene), upper = terms(cholesterol ~ ., data=work.gene))
+step.AIC <- step( lm(cholesterol~1, work.gene), scope, direction='both', trace=FALSE)
+step.BIC <- step( lm(cholesterol~1, work.gene), scope, direction='both', k=log(nrow(work.gene)), trace=FALSE)
+
+step.AIC
+
+step.BIC
+
+par(mfrow=c(2,2))
+plot(step.BIC, which=c(1,2,4,5))
+```
+
+\newpage
+
+##Régression Ridge
+
+Nous avons fait une régression stepwise sur les gènes sélectionnés sur la variance.
+
+```{r, echo=FALSE}
+library(glmnet)
+ridge<-glmnet(as.matrix(work.gene), cholesterol, alpha=0)
+par(mfrow=c(1,3))
+plot(ridge, xvar="lambda")
+plot(ridge, xvar="norm")
+plot(ridge, xvar="dev")
+
+ridge.10cv <- cv.glmnet(as.matrix(work.gene),cholesterol,nfolds=10, alpha=0, grouped=FALSE)
+ridge.loo <- cv.glmnet(as.matrix(work.gene),cholesterol,nfolds=nrow(work.gene), alpha=0 , grouped=FALSE)
+par(mfrow=c(1,2))
+plot(ridge.10cv)
+plot(ridge.loo)
+
+cbind(predict(ridge, as.matrix(work.gene[1:10,]), s=ridge.10cv$lambda.min), cholesterol[1:10])
+
+cbind(predict(ridge, as.matrix(work.gene[1:10,]), s=ridge.10cv$lambda.1se ), cholesterol[1:10])
+```
+
+On voit pour les gènes X211 et X213, que selon le modèle réalisé, les gènes ont une bonne moyenne mais une variance trop faible.
+
+\newpage
+
+##Régression Lasso
+
+Nous avons fait une régression lasso sur les gènes sélectionnés sur la variance.
+
+```{r, echo=FALSE}
+lasso <- glmnet(as.matrix(work.gene), cholesterol)
+par(mfrow=c(1,3))
+plot(lasso, xvar="lambda")
+plot(lasso, xvar="norm")
+plot(lasso, xvar="dev")
+
+lasso.10cv <- cv.glmnet(as.matrix(work.gene),cholesterol,nfolds=10, grouped=FALSE)
+lasso.loo <- cv.glmnet(as.matrix(work.gene),cholesterol,nfolds=nrow(work.gene) , grouped=FALSE)
+par(mfrow=c(1,2))
+plot(lasso.10cv)
+plot(lasso.loo)
+
+cbind(predict(lasso, as.matrix(work.gene[1:10,]), s=lasso.10cv$lambda.min), cholesterol[1:10])
+
+cbind(predict(lasso, as.matrix(work.gene[1:10,]), s=lasso.10cv$lambda.1se), cholesterol[1:10])
+```
+
+Là encore, les gènes ont une bonne moyenne mais une variance trop faible.
+
+```{r}
+n <- nrow(work.gene)
+p <- ncol(work.gene) - 1 + 1
+AIC <- n*log(colMeans((cholesterol - predict(lasso, as.matrix(work.gene)))^2)) + 2 * lasso$df
+BIC <- n*log(colMeans((cholesterol - predict(lasso, as.matrix(work.gene)))^2)) + log(n) * lasso$df
+eBIC <- n*log(colMeans((cholesterol - predict(lasso, as.matrix(work.gene)))^2)) + log(p) * lasso$df
+mBIC <- n*log(colMeans((cholesterol - predict(lasso, as.matrix(work.gene)))^2)) + (log(n) + 2 *log(p)) * lasso$df
+
+library(ggplot2)
+
+```
+
+
+Ecart à la moyenne du modèle pour chacune des valeurs lambda :
+
+
+```{r}
+d <- data.frame(lambda = rep(lasso$lambda, 4),
+value = c(AIC, BIC, eBIC, mBIC),
+critere = factor(rep(c("AIC","BIC","eBIC","mBIC"), each=length(lasso$lambda))))
+ggplot(d, aes(x=lambda,y=value,colour=critere,group=critere)) + geom_line() + scale_x_log10()
+
+lambda.min.BIC <- lasso$lambda[which.min(BIC)]
+lambda.min.mBIC <- lasso$lambda[which.min(mBIC)]
+
+cbind(predict(lasso, as.matrix(work.gene[1:10,]), s=lambda.min.BIC), cholesterol[1:10])
+
+cbind(predict(lasso, as.matrix(work.gene[1:10,]), s=lambda.min.mBIC), cholesterol[1:10])
+
+```
+
+
+Les modèles trouvés ont une bonne espérance mais une variance quasiment nulle, ne correspondant pas à la vraie variance des données de Cholesterol.
+
+\newpage
+
+##Régression sur l'ensemble des gènes
+
+Suite aux résultats du lasso et du ridge, nous voulons faire une régression sur l'ensemble des gènes.
+Nous allons donc faire une méthode Elastic net qui, avec un paramètre alpha, permet de combiner les deux techniques. Alpha = 0 : ridge penalty,  Alpha = 1 : lasso penaly
+
+Nous cherchons donc l'alpha qui minimise la différence de variance entre les données prédites et les vraies données en faisant également une validation croisée.
+
+```{r}
+
+var.chol<-var(cholesterol)
+
+better.model.loo <- cv.glmnet(as.matrix(gene),cholesterol,nfolds=nrow(gene) , grouped=FALSE)
+
+err.model<-function(a){
+  model<-glmnet(as.matrix(gene), cholesterol, alpha=a)
+  return(var(predict(model, as.matrix(gene), s=better.model.loo$lambda.min))-var.chol)
+}
+
+errors<-lapply(seq(0,1,0.1), err.model)
+
+plot(seq(0,1,0.1), errors)
+
+errors<-lapply(seq(0,0.1,0.01), err.model)
+
+plot(seq(0,0.1,0.01), errors)
+
+better.model<-glmnet(as.matrix(gene), cholesterol, alpha=0.04)
+
+better.model.lambda.min<-cv.glmnet(as.matrix(gene),cholesterol,nfolds=nrow(gene) , grouped=FALSE)$lambda.min
+
+err.var.min<-var.chol-var(predict(better.model, as.matrix(gene), s=better.model.lambda.min))
+
+err.mean.min<-mean(cholesterol)-mean(predict(better.model, as.matrix(gene), s=better.model.lambda.min))
+
+better.model.lambda.1se<-cv.glmnet(as.matrix(gene),cholesterol,nfolds=nrow(gene) , grouped=FALSE)$lambda.1se
+
+err.var.1se<-var.chol-var(predict(better.model, as.matrix(gene), s=better.model.lambda.1se))
+
+err.mean.1se<-mean(cholesterol)-mean(predict(better.model, as.matrix(gene), s=better.model.lambda.1se))
+
+matrix(c(err.var.min, err.var.1se, err.mean.min, err.mean.1se), 2, 2, dimnames=list(c("lambda.min", "lambda.1se"), c("err.var", "err.mean")))
+```
+
+En tracant le plot des données de cholesterol observées et des données prédites avec un elastic net (alpha = 0.04), nous pouvons observer que le modèle comporte 346 gènes et semble très satisfaisant.
+
+```{r, echo=FALSE}
+par(mfrow=c(1,1))
+
+predicted.cholesterol<-predict(better.model, as.matrix(gene), s=better.model.loo$lambda.min)
+plot(predicted.cholesterol, col="red")
+legend("bottomleft", legend = c("Données prédites", "Données observées"), pch = 1:1, col = c("red", "green"))
+points(cholesterol, col="green")
+
+```
+
+\newpage
+
+##Facteurs du modèle
+
+On remarque que les 346 gènes semblent être organisés en au moins 2 groupes
+
+```{r}
+better.model.coef<-predict(better.model, type="coef", s=better.model.loo$lambda.min)
+
+sum(better.model.coef!=0)
+
+coef.names<-c(dimnames(better.model.coef)[[1]][1], dimnames(better.model.coef)[[1]][better.model.coef@i])
+better.model.coef<-better.model.coef@x[better.model.coef@x!=0]
+names(better.model.coef)<-coef.names
+
+head(better.model.coef)
+
+gene.dist<-dist(gene[coef.names[-1]])
+plot(hclust(gene.dist))
+
+```
+
+
